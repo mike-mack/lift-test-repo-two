@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>RefactorFirstMavenCsvReport.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">refactor-first-maven-plugin</a> &gt; <a href="index.source.html" class="el_package">org.hjug.mavenreport</a> &gt; <span class="el_source">RefactorFirstMavenCsvReport.java</span></div><h1>RefactorFirstMavenCsvReport.java</h1><pre class="source lang-java linenums">package org.hjug.mavenreport;
+
+import static org.hjug.mavenreport.ReportWriter.writeReportToDisk;
+
+import java.io.File;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.maven.plugin.AbstractMojo;
+import org.apache.maven.plugins.annotations.LifecyclePhase;
+import org.apache.maven.plugins.annotations.Mojo;
+import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.plugins.annotations.ResolutionScope;
+import org.apache.maven.project.MavenProject;
+import org.hjug.cbc.CostBenefitCalculator;
+import org.hjug.cbc.RankedDisharmony;
+import org.hjug.git.GitLogReader;
+
+<span class="nc" id="L24">@Slf4j</span>
+@Mojo(
+        name = &quot;csvreport&quot;,
+        defaultPhase = LifecyclePhase.SITE,
+        requiresDependencyResolution = ResolutionScope.RUNTIME,
+        requiresProject = false,
+        threadSafe = true,
+        inheritByDefault = false)
+<span class="nc" id="L32">public class RefactorFirstMavenCsvReport extends AbstractMojo {</span>
+
+<span class="nc" id="L34">    @Parameter(property = &quot;showDetails&quot;)</span>
+    private boolean showDetails = false;
+
+    @Parameter(defaultValue = &quot;${project.name}&quot;)
+    private String projectName;
+
+    @Parameter(defaultValue = &quot;${project.version}&quot;)
+    private String projectVersion;
+
+    @Parameter(readonly = true, defaultValue = &quot;${project}&quot;)
+    private MavenProject project;
+
+    @Parameter(property = &quot;project.build.directory&quot;)
+    protected File outputDirectory;
+
+    public String getOutputNamePrefix() {
+        // This report will generate simple-report.html when invoked in a project with `mvn site`
+<span class="nc" id="L51">        return &quot;RefFirst&quot;;</span>
+    }
+
+    public String getName(Locale locale) {
+        // Name of the report when listed in the project-reports.html page of a project
+<span class="nc" id="L56">        return &quot;Refactor First Report data&quot;;</span>
+    }
+
+    public String getDescription(Locale locale) {
+        // Description of the report when listed in the project-reports.html page of a project
+<span class="nc" id="L61">        return &quot;DRACO Ranks the disharmonies in a codebase.  The classes that should be refactored first &quot;</span>
+                + &quot; have the highest priority values.&quot;;
+    }
+
+    @Override
+    public void execute() {
+<span class="nc" id="L67">        StringBuilder fileNameSB = new StringBuilder();</span>
+<span class="nc" id="L68">        String publishedDate = createFileDateTimeFormatter().format(Instant.now());</span>
+
+<span class="nc" id="L70">        fileNameSB</span>
+<span class="nc" id="L71">                .append(getOutputNamePrefix())</span>
+<span class="nc" id="L72">                .append(&quot;_P&quot;)</span>
+<span class="nc" id="L73">                .append(project.getArtifactId())</span>
+<span class="nc" id="L74">                .append(&quot;_PV&quot;)</span>
+<span class="nc" id="L75">                .append(project.getVersion())</span>
+<span class="nc" id="L76">                .append(&quot;_PD&quot;)</span>
+<span class="nc" id="L77">                .append(publishedDate)</span>
+<span class="nc" id="L78">                .append(&quot;.csv&quot;);</span>
+<span class="nc" id="L79">        String filename = fileNameSB.toString();</span>
+
+<span class="nc" id="L81">        log.info(&quot;Generating {} for {} - {} date: {}&quot;, filename, projectName, projectVersion, publishedDate);</span>
+
+<span class="nc" id="L83">        StringBuilder contentBuilder = new StringBuilder();</span>
+
+        // git management
+<span class="nc" id="L86">        GitLogReader gitLogReader = new GitLogReader();</span>
+<span class="nc" id="L87">        String projectBaseDir = project.getBasedir().getPath();</span>
+<span class="nc" id="L88">        Optional&lt;File&gt; optionalGitDir = Optional.ofNullable(gitLogReader.getGitDir(project.getBasedir()));</span>
+        File gitDir;
+
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        if (optionalGitDir.isPresent()) {</span>
+<span class="nc" id="L92">            gitDir = optionalGitDir.get();</span>
+        } else {
+<span class="nc" id="L94">            log.info(</span>
+                    &quot;Done! No Git repository found!  Please initialize a Git repository and perform an initial commit.&quot;);
+<span class="nc" id="L96">            contentBuilder</span>
+<span class="nc" id="L97">                    .append(&quot;No Git repository found in project &quot;)</span>
+<span class="nc" id="L98">                    .append(projectName)</span>
+<span class="nc" id="L99">                    .append(&quot; &quot;)</span>
+<span class="nc" id="L100">                    .append(projectVersion)</span>
+<span class="nc" id="L101">                    .append(&quot;. &quot;);</span>
+<span class="nc" id="L102">            contentBuilder.append(&quot;Please initialize a Git repository and perform an initial commit.&quot;);</span>
+<span class="nc" id="L103">            writeReportToDisk(project, filename, contentBuilder);</span>
+<span class="nc" id="L104">            return;</span>
+        }
+
+<span class="nc" id="L107">        String parentOfGitDir = gitDir.getParentFile().getPath();</span>
+<span class="nc" id="L108">        log.info(&quot;Project Base Dir: {} &quot;, projectBaseDir);</span>
+<span class="nc" id="L109">        log.info(&quot;Parent of Git Dir: {}&quot;, parentOfGitDir);</span>
+
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        if (!projectBaseDir.equals(parentOfGitDir)) {</span>
+<span class="nc" id="L112">            log.warn(&quot;Project Base Directory does not match Git Parent Directory&quot;);</span>
+<span class="nc" id="L113">            contentBuilder.append(&quot;Project Base Directory does not match Git Parent Directory.  &quot;</span>
+                    + &quot;Please refer to the report at the root of the site directory.&quot;);
+<span class="nc" id="L115">            return;</span>
+        }
+
+        // actual calcualte
+<span class="nc" id="L119">        CostBenefitCalculator costBenefitCalculator = new CostBenefitCalculator();</span>
+<span class="nc" id="L120">        List&lt;RankedDisharmony&gt; rankedDisharmonies = costBenefitCalculator.calculateCostBenefitValues(projectBaseDir);</span>
+
+<span class="nc" id="L122">        rankedDisharmonies.sort(</span>
+<span class="nc" id="L123">                Comparator.comparing(RankedDisharmony::getPriority).reversed());</span>
+
+        // perfect score: no god classes
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        if (rankedDisharmonies.isEmpty()) {</span>
+<span class="nc" id="L127">            contentBuilder</span>
+<span class="nc" id="L128">                    .append(&quot;Congratulations!  &quot;)</span>
+<span class="nc" id="L129">                    .append(projectName)</span>
+<span class="nc" id="L130">                    .append(&quot; &quot;)</span>
+<span class="nc" id="L131">                    .append(projectVersion)</span>
+<span class="nc" id="L132">                    .append(&quot; has no God classes!&quot;);</span>
+<span class="nc" id="L133">            log.info(&quot;Done! No God classes found!&quot;);</span>
+
+<span class="nc" id="L135">            writeReportToDisk(project, filename, contentBuilder);</span>
+<span class="nc" id="L136">            return;</span>
+        }
+
+        // create Content
+        // header
+<span class="nc" id="L141">        final String[] tableHeadings = getHeaderList();</span>
+<span class="nc" id="L142">        addsRow(contentBuilder, tableHeadings);</span>
+<span class="nc" id="L143">        contentBuilder.append(&quot;\n&quot;);</span>
+        // rows
+<span class="nc bnc" id="L145" title="All 2 branches missed.">        for (RankedDisharmony rankedDisharmony : rankedDisharmonies) {</span>
+<span class="nc" id="L146">            final String[] rankedDisharmonyData = getDataList(rankedDisharmony);</span>
+
+<span class="nc" id="L148">            contentBuilder.append(project.getVersion()).append(&quot;,&quot;);</span>
+<span class="nc" id="L149">            addsRow(contentBuilder, rankedDisharmonyData);</span>
+<span class="nc" id="L150">            contentBuilder.append(&quot;eol&quot; + &quot;\n&quot;);</span>
+<span class="nc" id="L151">        }</span>
+
+<span class="nc" id="L153">        log.info(contentBuilder.toString());</span>
+
+<span class="nc" id="L155">        writeReportToDisk(project, filename, contentBuilder);</span>
+<span class="nc" id="L156">    }</span>
+
+    private DateTimeFormatter createFileDateTimeFormatter() {
+<span class="nc" id="L159">        return DateTimeFormatter.ofPattern(&quot;yyyyMMddhhmm&quot;)</span>
+<span class="nc" id="L160">                .withLocale(Locale.getDefault())</span>
+<span class="nc" id="L161">                .withZone(ZoneId.systemDefault());</span>
+    }
+
+    private DateTimeFormatter createCsvDateTimeFormatter() {
+<span class="nc" id="L165">        return DateTimeFormatter.ISO_LOCAL_DATE_TIME</span>
+<span class="nc" id="L166">                .withLocale(Locale.getDefault())</span>
+<span class="nc" id="L167">                .withZone(ZoneId.systemDefault());</span>
+    }
+
+    private String[] getDataList(RankedDisharmony rankedDisharmony) {
+<span class="nc" id="L171">        String[] simpleRankedDisharmonyData = {</span>
+<span class="nc" id="L172">            rankedDisharmony.getClassName(),</span>
+<span class="nc" id="L173">            rankedDisharmony.getPriority().toString(),</span>
+<span class="nc" id="L174">            rankedDisharmony.getChangePronenessRank().toString(),</span>
+<span class="nc" id="L175">            rankedDisharmony.getEffortRank().toString(),</span>
+<span class="nc" id="L176">            rankedDisharmony.getWmc().toString(),</span>
+<span class="nc" id="L177">            createCsvDateTimeFormatter().format(rankedDisharmony.getMostRecentCommitTime()),</span>
+<span class="nc" id="L178">            rankedDisharmony.getCommitCount().toString()</span>
+        };
+
+<span class="nc" id="L181">        String[] detailedRankedDisharmonyData = {</span>
+<span class="nc" id="L182">            rankedDisharmony.getClassName(),</span>
+<span class="nc" id="L183">            rankedDisharmony.getPriority().toString(),</span>
+<span class="nc" id="L184">            rankedDisharmony.getChangePronenessRank().toString(),</span>
+<span class="nc" id="L185">            rankedDisharmony.getEffortRank().toString(),</span>
+<span class="nc" id="L186">            rankedDisharmony.getWmc().toString(),</span>
+<span class="nc" id="L187">            rankedDisharmony.getWmcRank().toString(),</span>
+<span class="nc" id="L188">            rankedDisharmony.getAtfd().toString(),</span>
+<span class="nc" id="L189">            rankedDisharmony.getAtfdRank().toString(),</span>
+<span class="nc" id="L190">            rankedDisharmony.getTcc().toString(),</span>
+<span class="nc" id="L191">            rankedDisharmony.getTccRank().toString(),</span>
+<span class="nc" id="L192">            createCsvDateTimeFormatter().format(rankedDisharmony.getFirstCommitTime()),</span>
+<span class="nc" id="L193">            createCsvDateTimeFormatter().format(rankedDisharmony.getMostRecentCommitTime()),</span>
+<span class="nc" id="L194">            rankedDisharmony.getCommitCount().toString(),</span>
+<span class="nc" id="L195">            rankedDisharmony.getPath()</span>
+        };
+
+<span class="nc bnc" id="L198" title="All 2 branches missed.">        return showDetails ? detailedRankedDisharmonyData : simpleRankedDisharmonyData;</span>
+    }
+
+    private String[] getHeaderList() {
+
+<span class="nc" id="L203">        final String[] simpleTableHeadings = {</span>
+            &quot;Ver&quot;,
+            &quot;Class&quot;,
+            &quot;Priority&quot;,
+            &quot;Change Proneness Rank&quot;,
+            &quot;Effort Rank&quot;,
+            &quot;Method Count&quot;,
+            &quot;Most Recent Commit Date&quot;,
+            &quot;Commit Count&quot;
+        };
+
+<span class="nc" id="L214">        final String[] detailedTableHeadings = {</span>
+            &quot;Ver&quot;,
+            &quot;Class&quot;,
+            &quot;Priority&quot;,
+            &quot;Change Proneness Rank&quot;,
+            &quot;Effort Rank&quot;,
+            &quot;WMC&quot;,
+            &quot;WMC Rank&quot;,
+            &quot;ATFD&quot;,
+            &quot;ATFD Rank&quot;,
+            &quot;TCC&quot;,
+            &quot;TCC Rank&quot;,
+            &quot;Date of First Commit&quot;,
+            &quot;Most Recent Commit Date&quot;,
+            &quot;Commit Count&quot;,
+            &quot;Full Path&quot;
+        };
+
+<span class="nc bnc" id="L232" title="All 2 branches missed.">        return showDetails ? detailedTableHeadings : simpleTableHeadings;</span>
+    }
+
+    private void addsRow(StringBuilder contentBuilder, String[] rankedDisharmonyData) {
+<span class="nc bnc" id="L236" title="All 2 branches missed.">        for (String rowData : rankedDisharmonyData) {</span>
+<span class="nc" id="L237">            contentBuilder.append(rowData).append(&quot;,&quot;);</span>
+        }
+<span class="nc" id="L239">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.6.202009150832</span></div></body></html>

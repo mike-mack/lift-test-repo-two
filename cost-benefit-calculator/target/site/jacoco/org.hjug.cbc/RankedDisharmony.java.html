@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RankedDisharmony.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cost-benefit-calculator</a> &gt; <a href="index.source.html" class="el_package">org.hjug.cbc</a> &gt; <span class="el_source">RankedDisharmony.java</span></div><h1>RankedDisharmony.java</h1><pre class="source lang-java linenums">package org.hjug.cbc;
+
+import java.nio.file.Paths;
+import java.time.Instant;
+import lombok.Data;
+import org.hjug.git.ScmLogInfo;
+import org.hjug.metrics.GodClass;
+
+@Data
+public class RankedDisharmony {
+
+    private final String path;
+    private final String className;
+    private final Integer effortRank;
+    private final Integer changePronenessRank;
+    private final Integer priority;
+
+    private final Integer wmc;
+    private final Integer wmcRank;
+    private final Integer atfd;
+    private final Integer atfdRank;
+    private final Float tcc;
+    private final Integer tccRank;
+
+    private final Instant firstCommitTime;
+    private final Instant mostRecentCommitTime;
+    private final Integer commitCount;
+
+<span class="fc" id="L29">    public RankedDisharmony(GodClass godClass, ScmLogInfo scmLogInfo) {</span>
+<span class="fc" id="L30">        path = scmLogInfo.getPath();</span>
+        // from https://stackoverflow.com/questions/1011287/get-file-name-from-a-file-location-in-java
+<span class="fc" id="L32">        className = Paths.get(path).getFileName().toString();</span>
+<span class="fc" id="L33">        changePronenessRank = scmLogInfo.getChangePronenessRank();</span>
+<span class="fc" id="L34">        effortRank = godClass.getOverallRank();</span>
+<span class="fc" id="L35">        priority = changePronenessRank - effortRank;</span>
+
+<span class="fc" id="L37">        wmc = godClass.getWmc();</span>
+<span class="fc" id="L38">        wmcRank = godClass.getWmcRank();</span>
+<span class="fc" id="L39">        atfd = godClass.getAtfd();</span>
+<span class="fc" id="L40">        atfdRank = godClass.getAtfdRank();</span>
+<span class="fc" id="L41">        tcc = godClass.getTcc();</span>
+<span class="fc" id="L42">        tccRank = godClass.getTccRank();</span>
+
+<span class="fc" id="L44">        firstCommitTime = Instant.ofEpochSecond(scmLogInfo.getEarliestCommit());</span>
+<span class="fc" id="L45">        mostRecentCommitTime = Instant.ofEpochSecond(scmLogInfo.getMostRecentCommit());</span>
+<span class="fc" id="L46">        commitCount = scmLogInfo.getCommitCount();</span>
+<span class="fc" id="L47">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.6.202009150832</span></div></body></html>

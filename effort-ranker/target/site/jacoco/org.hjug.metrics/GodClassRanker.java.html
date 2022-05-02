@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GodClassRanker.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">effort-ranker</a> &gt; <a href="index.source.html" class="el_package">org.hjug.metrics</a> &gt; <span class="el_source">GodClassRanker.java</span></div><h1>GodClassRanker.java</h1><pre class="source lang-java linenums">package org.hjug.metrics;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.function.Function;
+import java.util.function.ObjIntConsumer;
+import lombok.extern.slf4j.Slf4j;
+
+/**
+ * Created by Wendy on 11/16/2016.
+ */
+<span class="fc" id="L12">@Slf4j</span>
+<span class="fc" id="L13">public class GodClassRanker {</span>
+
+    public void rankGodClasses(List&lt;GodClass&gt; godClasses) {
+<span class="fc" id="L16">        rankWmc(godClasses);</span>
+<span class="fc" id="L17">        rankAtfd(godClasses);</span>
+<span class="fc" id="L18">        rankTcc(godClasses);</span>
+<span class="fc" id="L19">        computeOverallRank(godClasses);</span>
+<span class="fc" id="L20">    }</span>
+
+    void computeOverallRank(List&lt;GodClass&gt; godClasses) {
+
+<span class="fc" id="L24">        godClasses.forEach(godClass -&gt;</span>
+<span class="fc" id="L25">                godClass.setSumOfRanks(godClass.getWmcRank() + godClass.getAtfdRank() + godClass.getTccRank()));</span>
+
+<span class="fc" id="L27">        godClasses.sort(Comparator.comparing(GodClass::getSumOfRanks));</span>
+
+<span class="fc" id="L29">        Function&lt;GodClass, Integer&gt; getSumOfRanks = GodClass::getSumOfRanks;</span>
+<span class="fc" id="L30">        ObjIntConsumer&lt;GodClass&gt; setOverallRank = GodClass::setOverallRank;</span>
+
+<span class="fc" id="L32">        setRank(godClasses, getSumOfRanks, setOverallRank);</span>
+<span class="fc" id="L33">    }</span>
+
+    void rankWmc(List&lt;GodClass&gt; godClasses) {
+<span class="fc" id="L36">        log.info(&quot;Calculating Weighted Method per Class (WMC) Rank&quot;);</span>
+<span class="fc" id="L37">        godClasses.sort(Comparator.comparing(GodClass::getWmc));</span>
+
+<span class="fc" id="L39">        Function&lt;GodClass, Integer&gt; getWmc = GodClass::getWmc;</span>
+<span class="fc" id="L40">        ObjIntConsumer&lt;GodClass&gt; setWmcRank = GodClass::setWmcRank;</span>
+
+<span class="fc" id="L42">        setRank(godClasses, getWmc, setWmcRank);</span>
+<span class="fc" id="L43">    }</span>
+
+    void rankAtfd(List&lt;GodClass&gt; godClasses) {
+<span class="fc" id="L46">        log.info(&quot;Calculating Access to Foreign Data (ATFD) Rank&quot;);</span>
+<span class="fc" id="L47">        godClasses.sort(Comparator.comparing(GodClass::getAtfd));</span>
+
+<span class="fc" id="L49">        Function&lt;GodClass, Integer&gt; getAtfd = GodClass::getAtfd;</span>
+<span class="fc" id="L50">        ObjIntConsumer&lt;GodClass&gt; setAtfdRank = GodClass::setAtfdRank;</span>
+
+<span class="fc" id="L52">        setRank(godClasses, getAtfd, setAtfdRank);</span>
+<span class="fc" id="L53">    }</span>
+
+    void rankTcc(List&lt;GodClass&gt; godClasses) {
+<span class="fc" id="L56">        log.info(&quot;Calculating Total Cyclomatic Complexity (TCC) Rank&quot;);</span>
+<span class="fc" id="L57">        godClasses.sort(Comparator.comparing(GodClass::getTcc));</span>
+
+<span class="fc" id="L59">        Function&lt;GodClass, Float&gt; getTcc = GodClass::getTcc;</span>
+<span class="fc" id="L60">        ObjIntConsumer&lt;GodClass&gt; setTccRank = GodClass::setTccRank;</span>
+
+<span class="fc" id="L62">        setRank(godClasses, getTcc, setTccRank);</span>
+<span class="fc" id="L63">    }</span>
+
+    &lt;T extends Number &amp; Comparable&lt;? super T&gt;&gt; void setRank(
+            List&lt;GodClass&gt; godClasses, Function&lt;GodClass, T&gt; getter, ObjIntConsumer&lt;GodClass&gt; setter) {
+<span class="fc" id="L67">        int rank = 1;</span>
+<span class="fc" id="L68">        T previousValue = null;</span>
+
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        for (GodClass godClass : godClasses) {</span>
+<span class="fc" id="L71">            T value = getter.apply(godClass);</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">            if (null == previousValue) {</span>
+<span class="fc" id="L73">                previousValue = value;</span>
+            }
+
+<span class="fc bfc" id="L76" title="All 2 branches covered.">            if (value.compareTo(previousValue) &gt; 0) {</span>
+<span class="fc" id="L77">                setter.accept(godClass, ++rank);</span>
+<span class="fc" id="L78">                previousValue = value;</span>
+            } else {
+<span class="fc" id="L80">                setter.accept(godClass, rank);</span>
+            }
+<span class="fc" id="L82">        }</span>
+<span class="fc" id="L83">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.6.202009150832</span></div></body></html>

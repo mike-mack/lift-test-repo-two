@@ -1,0 +1,362 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RefactorFirstMavenReport.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">refactor-first-maven-plugin</a> &gt; <a href="index.source.html" class="el_package">org.hjug.mavenreport</a> &gt; <span class="el_source">RefactorFirstMavenReport.java</span></div><h1>RefactorFirstMavenReport.java</h1><pre class="source lang-java linenums">package org.hjug.mavenreport;
+
+import static org.hjug.mavenreport.ReportWriter.writeReportToDisk;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.maven.plugin.AbstractMojo;
+import org.apache.maven.plugins.annotations.LifecyclePhase;
+import org.apache.maven.plugins.annotations.Mojo;
+import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.plugins.annotations.ResolutionScope;
+import org.apache.maven.project.MavenProject;
+import org.hjug.cbc.CostBenefitCalculator;
+import org.hjug.cbc.RankedDisharmony;
+import org.hjug.gdg.GraphDataGenerator;
+import org.hjug.git.GitLogReader;
+
+<span class="fc" id="L30">@Slf4j</span>
+@Mojo(
+        name = &quot;report&quot;,
+        defaultPhase = LifecyclePhase.SITE,
+        requiresDependencyResolution = ResolutionScope.RUNTIME,
+        requiresProject = false,
+        threadSafe = true,
+        inheritByDefault = false)
+<span class="fc" id="L38">public class RefactorFirstMavenReport extends AbstractMojo {</span>
+
+    private static final String THE_BEGINNING =
+            &quot;&lt;html xmlns=\&quot;http://www.w3.org/1999/xhtml\&quot; xml:lang=\&quot;en\&quot; lang=\&quot;en\&quot;&gt;\n&quot; + &quot;  &lt;head&gt;\n&quot;
+                    + &quot;    &lt;meta charset=\&quot;UTF-8\&quot; /&gt;\n&quot;
+                    + &quot;    &lt;meta name=\&quot;viewport\&quot; content=\&quot;width=device-width, initial-scale=1.0\&quot; /&gt;\n&quot;
+                    + &quot;    &lt;meta name=\&quot;generator\&quot; content=\&quot;Apache Maven Doxia Site Renderer 1.9.2\&quot; /&gt;&quot;;
+
+    private static final String LEGEND = &quot;       &lt;h2&gt;Chart Legend:&lt;/h2&gt;&quot; + &quot;       &lt;table border=\&quot;5px\&quot;&gt;\n&quot;
+            + &quot;          &lt;tbody&gt;\n&quot;
+            + &quot;            &lt;tr&gt;&lt;td&gt;&lt;strong&gt;X-Axis:&lt;/strong&gt; Effort to refactor to a non-God class&lt;/td&gt;&lt;/tr&gt;\n&quot;
+            + &quot;            &lt;tr&gt;&lt;td&gt;&lt;strong&gt;Y-Axis:&lt;/strong&gt; Relative churn&lt;/td&gt;&lt;/tr&gt;\n&quot;
+            + &quot;            &lt;tr&gt;&lt;td&gt;&lt;strong&gt;Color:&lt;/strong&gt; Rank of what to fix first&lt;/td&gt;&lt;/tr&gt;\n&quot;
+            + &quot;            &lt;tr&gt;&lt;td&gt;&lt;strong&gt;Circle size:&lt;/strong&gt; Number of non-getter/setter methods&lt;/td&gt;&lt;/tr&gt;\n&quot;
+            + &quot;          &lt;/tbody&gt;\n&quot;
+            + &quot;        &lt;/table&gt;&quot;
+            + &quot;        &lt;br/&gt;&quot;;
+
+    private static final String THE_END = &quot;&lt;/div&gt;\n&quot; + &quot;    &lt;/div&gt;\n&quot;
+            + &quot;    &lt;div class=\&quot;clear\&quot;&gt;\n&quot;
+            + &quot;      &lt;hr/&gt;\n&quot;
+            + &quot;    &lt;/div&gt;\n&quot;
+            + &quot;    &lt;div id=\&quot;footer\&quot;&gt;\n&quot;
+            + &quot;      &lt;div class=\&quot;xright\&quot;&gt;\n&quot;
+            + &quot;        Copyright &amp;#169;      2002&amp;#x2013;2021&lt;a href=\&quot;https://www.apache.org/\&quot;&gt;The Apache Software Foundation&lt;/a&gt;.\n&quot;
+            + &quot;.      &lt;/div&gt;\n&quot;
+            + &quot;      &lt;div class=\&quot;clear\&quot;&gt;\n&quot;
+            + &quot;        &lt;hr/&gt;\n&quot;
+            + &quot;      &lt;/div&gt;\n&quot;
+            + &quot;    &lt;/div&gt;\n&quot;
+            + &quot;  &lt;/body&gt;\n&quot;
+            + &quot;&lt;/html&gt;\n&quot;;
+
+<span class="fc" id="L71">    @Parameter(property = &quot;showDetails&quot;)</span>
+    private boolean showDetails = false;
+
+    @Parameter(defaultValue = &quot;${project.name}&quot;)
+    private String projectName;
+
+    @Parameter(defaultValue = &quot;${project.version}&quot;)
+    private String projectVersion;
+
+    @Parameter(readonly = true, defaultValue = &quot;${project}&quot;)
+    private MavenProject project;
+
+    @Parameter(property = &quot;project.build.directory&quot;)
+    protected File outputDirectory;
+
+    public String getOutputName() {
+        // This report will generate simple-report.html when invoked in a project with `mvn site`
+<span class="fc" id="L88">        return &quot;refactor-first-report&quot;;</span>
+    }
+
+    public String getName(Locale locale) {
+        // Name of the report when listed in the project-reports.html page of a project
+<span class="fc" id="L93">        return &quot;Refactor First Report&quot;;</span>
+    }
+
+    public String getDescription(Locale locale) {
+        // Description of the report when listed in the project-reports.html page of a project
+<span class="fc" id="L98">        return &quot;Ranks the disharmonies in a codebase.  The classes that should be refactored first &quot;</span>
+                + &quot; have the highest priority values.&quot;;
+    }
+
+    @Override
+    public void execute() {
+
+<span class="nc" id="L105">        final String[] simpleTableHeadings = {</span>
+            &quot;Class&quot;,
+            &quot;Priority&quot;,
+            &quot;Change Proneness Rank&quot;,
+            &quot;Effort Rank&quot;,
+            &quot;Method Count&quot;,
+            &quot;Most Recent Commit Date&quot;,
+            &quot;Commit Count&quot;
+        };
+
+<span class="nc" id="L115">        final String[] detailedTableHeadings = {</span>
+            &quot;Class&quot;,
+            &quot;Priority&quot;,
+            &quot;Change Proneness Rank&quot;,
+            &quot;Effort Rank&quot;,
+            &quot;WMC&quot;,
+            &quot;WMC Rank&quot;,
+            &quot;ATFD&quot;,
+            &quot;ATFD Rank&quot;,
+            &quot;TCC&quot;,
+            &quot;TCC Rank&quot;,
+            &quot;Date of First Commit&quot;,
+            &quot;Most Recent Commit Date&quot;,
+            &quot;Commit Count&quot;,
+            &quot;Full Path&quot;
+        };
+
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        final String[] tableHeadings = showDetails ? detailedTableHeadings : simpleTableHeadings;</span>
+
+<span class="nc" id="L134">        String filename = getOutputName() + &quot;.html&quot;;</span>
+
+<span class="nc" id="L136">        log.info(&quot;Generating {} for {} - {}&quot;, filename, projectName, projectVersion);</span>
+
+<span class="nc" id="L138">        DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)</span>
+<span class="nc" id="L139">                .withLocale(Locale.getDefault())</span>
+<span class="nc" id="L140">                .withZone(ZoneId.systemDefault());</span>
+
+<span class="nc" id="L142">        StringBuilder stringBuilder = new StringBuilder();</span>
+
+<span class="nc" id="L144">        stringBuilder.append(THE_BEGINNING);</span>
+
+<span class="nc" id="L146">        stringBuilder</span>
+<span class="nc" id="L147">                .append(&quot;&lt;title&gt;Refactor First Report for &quot;)</span>
+<span class="nc" id="L148">                .append(projectName)</span>
+<span class="nc" id="L149">                .append(&quot; &quot;)</span>
+<span class="nc" id="L150">                .append(projectVersion)</span>
+<span class="nc" id="L151">                .append(&quot; &lt;/title&gt;&quot;);</span>
+
+<span class="nc" id="L153">        stringBuilder.append(&quot;&lt;link rel=\&quot;stylesheet\&quot; href=\&quot;./css/maven-base.css\&quot; /&gt;\n&quot;</span>
+                + &quot;    &lt;link rel=\&quot;stylesheet\&quot; href=\&quot;./css/maven-theme.css\&quot; /&gt;\n&quot;
+                + &quot;    &lt;link rel=\&quot;stylesheet\&quot; href=\&quot;./css/site.css\&quot; /&gt;\n&quot;
+                + &quot;    &lt;link rel=\&quot;stylesheet\&quot; href=\&quot;./css/print.css\&quot; media=\&quot;print\&quot; /&gt;\n&quot;
+                + &quot;&lt;script type=\&quot;text/javascript\&quot; src=\&quot;https://www.gstatic.com/charts/loader.js\&quot;&gt;&quot;
+                + &quot;&lt;/script&gt;&lt;script type=\&quot;text/javascript\&quot; src=\&quot;./gchart.js\&quot;&gt;&lt;/script&gt;  &lt;/head&gt;\n&quot;
+                + &quot;  &lt;body class=\&quot;composite\&quot;&gt;\n&quot;
+                + &quot;    &lt;div id=\&quot;banner\&quot;&gt;\n&quot;
+                + &quot;      &lt;div class=\&quot;clear\&quot;&gt;\n&quot;
+                + &quot;        &lt;hr/&gt;\n&quot;
+                + &quot;      &lt;/div&gt;\n&quot;
+                + &quot;    &lt;/div&gt;\n&quot;
+                + &quot;    &lt;div id=\&quot;breadcrumbs\&quot;&gt;\n&quot;
+                + &quot;      &lt;div class=\&quot;xleft\&quot;&gt;&quot;);
+
+<span class="nc" id="L168">        stringBuilder</span>
+<span class="nc" id="L169">                .append(&quot;&lt;span id=\&quot;publishDate\&quot;&gt;Last Published: &quot;)</span>
+<span class="nc" id="L170">                .append(formatter.format(Instant.now()))</span>
+<span class="nc" id="L171">                .append(&quot;&lt;/span&gt;&quot;);</span>
+<span class="nc" id="L172">        stringBuilder</span>
+<span class="nc" id="L173">                .append(&quot;&lt;span id=\&quot;projectVersion\&quot;&gt; Version: &quot;)</span>
+<span class="nc" id="L174">                .append(projectVersion)</span>
+<span class="nc" id="L175">                .append(&quot;&lt;/span&gt;&quot;);</span>
+
+<span class="nc" id="L177">        stringBuilder.append(&quot;&lt;/div&gt;\n&quot; + &quot;      &lt;div class=\&quot;xright\&quot;&gt;      &lt;/div&gt;\n&quot;</span>
+                + &quot;      &lt;div class=\&quot;clear\&quot;&gt;\n&quot;
+                + &quot;        &lt;hr/&gt;\n&quot;
+                + &quot;      &lt;/div&gt;\n&quot;
+                + &quot;    &lt;/div&gt;\n&quot;
+                + &quot;    &lt;div id=\&quot;leftColumn\&quot;&gt;\n&quot;
+                + &quot;      &lt;div id=\&quot;navcolumn\&quot;&gt;\n&quot;
+                + &quot;      &lt;a href=\&quot;http://maven.apache.org/\&quot; title=\&quot;Built by Maven\&quot; class=\&quot;poweredBy\&quot;&gt;\n&quot;
+                + &quot;        &lt;img class=\&quot;poweredBy\&quot; alt=\&quot;Built by Maven\&quot; src=\&quot;./images/logos/maven-feather.png\&quot; /&gt;\n&quot;
+                + &quot;      &lt;/a&gt;\n&quot;
+                + &quot;      &lt;/div&gt;\n&quot;
+                + &quot;    &lt;/div&gt;\n&quot;
+                + &quot;    &lt;div id=\&quot;bodyColumn\&quot;&gt;\n&quot;
+                + &quot;      &lt;div id=\&quot;contentBox\&quot;&gt;&quot;);
+
+<span class="nc" id="L192">        stringBuilder</span>
+<span class="nc" id="L193">                .append(&quot;&lt;section&gt;\n&quot; + &quot;&lt;h2&gt;God Class Report for &quot;)</span>
+<span class="nc" id="L194">                .append(projectName)</span>
+<span class="nc" id="L195">                .append(&quot; &quot;)</span>
+<span class="nc" id="L196">                .append(projectVersion)</span>
+<span class="nc" id="L197">                .append(&quot;&lt;/h2&gt;\n&quot;)</span>
+<span class="nc" id="L198">                .append(&quot;&lt;div id=\&quot;series_chart_div\&quot;&gt;&lt;/div&gt;&quot;);</span>
+
+<span class="nc" id="L200">        GitLogReader gitLogReader = new GitLogReader();</span>
+        // String projectBaseDir = project.getBasedir().getPath();  &lt;- getPath call fails because getBasedir returns
+        // null
+        String projectBaseDir;
+        Optional&lt;File&gt; optionalGitDir;
+
+<span class="nc" id="L206">        File baseDir = project.getBasedir();</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">        if (baseDir == null) {</span>
+<span class="nc" id="L208">            projectBaseDir = Paths.get(&quot;&quot;).toAbsolutePath().toString();</span>
+<span class="nc" id="L209">            File n = new File(projectBaseDir);</span>
+<span class="nc" id="L210">            optionalGitDir = Optional.ofNullable(gitLogReader.getGitDir(n));</span>
+<span class="nc" id="L211">        } else {</span>
+<span class="nc" id="L212">            projectBaseDir = baseDir.getPath();</span>
+<span class="nc" id="L213">            optionalGitDir = Optional.ofNullable(gitLogReader.getGitDir(project.getBasedir()));</span>
+        }
+
+        File gitDir;
+
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        if (optionalGitDir.isPresent()) {</span>
+<span class="nc" id="L219">            gitDir = optionalGitDir.get();</span>
+        } else {
+<span class="nc" id="L221">            log.info(</span>
+                    &quot;Done! No Git repository found!  Please initialize a Git repository and perform an initial commit.&quot;);
+<span class="nc" id="L223">            stringBuilder</span>
+<span class="nc" id="L224">                    .append(&quot;No Git repository found in project &quot;)</span>
+<span class="nc" id="L225">                    .append(projectName)</span>
+<span class="nc" id="L226">                    .append(&quot; &quot;)</span>
+<span class="nc" id="L227">                    .append(projectVersion)</span>
+<span class="nc" id="L228">                    .append(&quot;.  &quot;);</span>
+<span class="nc" id="L229">            stringBuilder.append(&quot;Please initialize a Git repository and perform an initial commit.&quot;);</span>
+<span class="nc" id="L230">            stringBuilder.append(THE_END);</span>
+<span class="nc" id="L231">            writeReportToDisk(project, filename, stringBuilder);</span>
+<span class="nc" id="L232">            return;</span>
+        }
+
+<span class="nc" id="L235">        String parentOfGitDir = gitDir.getParentFile().getPath();</span>
+<span class="nc" id="L236">        log.info(&quot;Project Base Dir: {} &quot;, projectBaseDir);</span>
+<span class="nc" id="L237">        log.info(&quot;Parent of Git Dir: {}&quot;, parentOfGitDir);</span>
+
+<span class="nc bnc" id="L239" title="All 2 branches missed.">        if (!projectBaseDir.equals(parentOfGitDir)) {</span>
+<span class="nc" id="L240">            log.warn(&quot;Project Base Directory does not match Git Parent Directory&quot;);</span>
+<span class="nc" id="L241">            stringBuilder.append(&quot;Project Base Directory does not match Git Parent Directory.  &quot;</span>
+                    + &quot;Please refer to the report at the root of the site directory.&quot;);
+<span class="nc" id="L243">            stringBuilder.append(THE_END);</span>
+<span class="nc" id="L244">            return;</span>
+        }
+
+<span class="nc" id="L247">        CostBenefitCalculator costBenefitCalculator = new CostBenefitCalculator();</span>
+<span class="nc" id="L248">        List&lt;RankedDisharmony&gt; rankedDisharmonies = costBenefitCalculator.calculateCostBenefitValues(projectBaseDir);</span>
+
+<span class="nc" id="L250">        rankedDisharmonies.sort(</span>
+<span class="nc" id="L251">                Comparator.comparing(RankedDisharmony::getPriority).reversed());</span>
+
+<span class="nc bnc" id="L253" title="All 2 branches missed.">        if (rankedDisharmonies.isEmpty()) {</span>
+<span class="nc" id="L254">            stringBuilder</span>
+<span class="nc" id="L255">                    .append(&quot;Congratulations!  &quot;)</span>
+<span class="nc" id="L256">                    .append(projectName)</span>
+<span class="nc" id="L257">                    .append(&quot; &quot;)</span>
+<span class="nc" id="L258">                    .append(projectVersion)</span>
+<span class="nc" id="L259">                    .append(&quot; has no God classes!&quot;);</span>
+<span class="nc" id="L260">            log.info(&quot;Done! No God classes found!&quot;);</span>
+<span class="nc" id="L261">            stringBuilder.append(THE_END);</span>
+<span class="nc" id="L262">            writeReportToDisk(project, filename, stringBuilder);</span>
+<span class="nc" id="L263">            return;</span>
+        }
+
+<span class="nc" id="L266">        writeGchartJs(rankedDisharmonies);</span>
+<span class="nc" id="L267">        stringBuilder.append(LEGEND);</span>
+
+<span class="nc" id="L269">        stringBuilder.append(&quot;&lt;h2&gt;God classes by the numbers: (Refactor higher priority classes first)&lt;/h2&gt;&quot;);</span>
+<span class="nc" id="L270">        stringBuilder.append(&quot;&lt;table border=\&quot;5px\&quot; class=\&quot;table table-striped\&quot;&gt;&quot;);</span>
+
+        // Content
+<span class="nc" id="L273">        stringBuilder.append(&quot;&lt;thead&gt;&lt;tr&gt;&quot;);</span>
+<span class="nc bnc" id="L274" title="All 2 branches missed.">        for (String heading : tableHeadings) {</span>
+<span class="nc" id="L275">            stringBuilder.append(&quot;&lt;th&gt;&quot;).append(heading).append(&quot;&lt;/th&gt;&quot;);</span>
+        }
+<span class="nc" id="L277">        stringBuilder.append(&quot;&lt;/tr&gt;&lt;/thead&gt;&quot;);</span>
+
+<span class="nc" id="L279">        stringBuilder.append(&quot;&lt;tbody&gt;&quot;);</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">        for (RankedDisharmony rankedDisharmony : rankedDisharmonies) {</span>
+<span class="nc" id="L281">            stringBuilder.append(&quot;&lt;tr&gt;&quot;);</span>
+
+<span class="nc" id="L283">            String[] simpleRankedDisharmonyData = {</span>
+<span class="nc" id="L284">                rankedDisharmony.getClassName(),</span>
+<span class="nc" id="L285">                rankedDisharmony.getPriority().toString(),</span>
+<span class="nc" id="L286">                rankedDisharmony.getChangePronenessRank().toString(),</span>
+<span class="nc" id="L287">                rankedDisharmony.getEffortRank().toString(),</span>
+<span class="nc" id="L288">                rankedDisharmony.getWmc().toString(),</span>
+<span class="nc" id="L289">                formatter.format(rankedDisharmony.getMostRecentCommitTime()),</span>
+<span class="nc" id="L290">                rankedDisharmony.getCommitCount().toString()</span>
+            };
+
+<span class="nc" id="L293">            String[] detailedRankedDisharmonyData = {</span>
+<span class="nc" id="L294">                rankedDisharmony.getClassName(),</span>
+<span class="nc" id="L295">                rankedDisharmony.getPriority().toString(),</span>
+<span class="nc" id="L296">                rankedDisharmony.getChangePronenessRank().toString(),</span>
+<span class="nc" id="L297">                rankedDisharmony.getEffortRank().toString(),</span>
+<span class="nc" id="L298">                rankedDisharmony.getWmc().toString(),</span>
+<span class="nc" id="L299">                rankedDisharmony.getWmcRank().toString(),</span>
+<span class="nc" id="L300">                rankedDisharmony.getAtfd().toString(),</span>
+<span class="nc" id="L301">                rankedDisharmony.getAtfdRank().toString(),</span>
+<span class="nc" id="L302">                rankedDisharmony.getTcc().toString(),</span>
+<span class="nc" id="L303">                rankedDisharmony.getTccRank().toString(),</span>
+<span class="nc" id="L304">                formatter.format(rankedDisharmony.getFirstCommitTime()),</span>
+<span class="nc" id="L305">                formatter.format(rankedDisharmony.getMostRecentCommitTime()),</span>
+<span class="nc" id="L306">                rankedDisharmony.getCommitCount().toString(),</span>
+<span class="nc" id="L307">                rankedDisharmony.getPath()</span>
+            };
+
+            final String[] rankedDisharmonyData =
+<span class="nc bnc" id="L311" title="All 2 branches missed.">                    showDetails ? detailedRankedDisharmonyData : simpleRankedDisharmonyData;</span>
+
+<span class="nc bnc" id="L313" title="All 2 branches missed.">            for (String rowData : rankedDisharmonyData) {</span>
+<span class="nc" id="L314">                stringBuilder.append(&quot;&lt;td&gt;&quot;).append(rowData).append(&quot;&lt;/td&gt;&quot;);</span>
+            }
+
+<span class="nc" id="L317">            stringBuilder.append(&quot;&lt;/tr&gt;&quot;);</span>
+<span class="nc" id="L318">        }</span>
+
+<span class="nc" id="L320">        stringBuilder.append(&quot;&lt;/tbody&gt;&quot;);</span>
+
+<span class="nc" id="L322">        log.info(&quot;Done! View the report at target/site/{}&quot;, filename);</span>
+
+<span class="nc" id="L324">        stringBuilder.append(&quot;&lt;/table&gt;&lt;/section&gt;&quot;);</span>
+<span class="nc" id="L325">        stringBuilder.append(THE_END);</span>
+
+<span class="nc" id="L327">        log.info(stringBuilder.toString());</span>
+
+<span class="nc" id="L329">        writeReportToDisk(project, filename, stringBuilder);</span>
+<span class="nc" id="L330">    }</span>
+
+    // TODO: Move to another class to allow use by Gradle plugin
+    void writeGchartJs(List&lt;RankedDisharmony&gt; rankedDisharmonies) {
+<span class="nc" id="L334">        GraphDataGenerator graphDataGenerator = new GraphDataGenerator();</span>
+<span class="nc" id="L335">        String scriptStart = graphDataGenerator.getScriptStart();</span>
+<span class="nc" id="L336">        String bubbleChartData = graphDataGenerator.generateBubbleChartData(rankedDisharmonies);</span>
+<span class="nc" id="L337">        String scriptEnd = graphDataGenerator.getScriptEnd();</span>
+
+<span class="nc" id="L339">        String javascriptCode = scriptStart + bubbleChartData + scriptEnd;</span>
+
+<span class="nc" id="L341">        String reportOutputDirectory = project.getModel().getReporting().getOutputDirectory();</span>
+<span class="nc" id="L342">        File reportOutputDir = new File(reportOutputDirectory);</span>
+<span class="nc bnc" id="L343" title="All 2 branches missed.">        if (!reportOutputDir.exists()) {</span>
+<span class="nc" id="L344">            reportOutputDir.mkdirs();</span>
+        }
+<span class="nc" id="L346">        String pathname = reportOutputDirectory + File.separator + &quot;gchart.js&quot;;</span>
+
+<span class="nc" id="L348">        File scriptFile = new File(pathname);</span>
+        try {
+<span class="nc" id="L350">            scriptFile.createNewFile();</span>
+<span class="nc" id="L351">        } catch (IOException e) {</span>
+<span class="nc" id="L352">            log.error(&quot;Failure creating chart script file&quot;, e);</span>
+<span class="nc" id="L353">        }</span>
+
+<span class="nc" id="L355">        try (BufferedWriter writer = new BufferedWriter(new FileWriter(scriptFile))) {</span>
+<span class="nc" id="L356">            writer.write(javascriptCode);</span>
+<span class="nc" id="L357">        } catch (IOException e) {</span>
+<span class="nc" id="L358">            log.error(&quot;Error writing chart script file&quot;, e);</span>
+<span class="nc" id="L359">        }</span>
+<span class="nc" id="L360">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.6.202009150832</span></div></body></html>

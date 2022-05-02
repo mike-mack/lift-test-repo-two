@@ -1,0 +1,4 @@
+org/hjug/git/ChangePronenessRanker.class
+org/hjug/git/GitLogReader.class
+org/hjug/git/RepositoryLogReader.class
+org/hjug/git/ScmLogInfo.class

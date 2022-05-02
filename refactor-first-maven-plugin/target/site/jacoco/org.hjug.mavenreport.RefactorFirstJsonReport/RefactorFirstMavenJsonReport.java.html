@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RefactorFirstMavenJsonReport.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">refactor-first-maven-plugin</a> &gt; <a href="index.source.html" class="el_package">org.hjug.mavenreport.RefactorFirstJsonReport</a> &gt; <span class="el_source">RefactorFirstMavenJsonReport.java</span></div><h1>RefactorFirstMavenJsonReport.java</h1><pre class="source lang-java linenums">package org.hjug.mavenreport.RefactorFirstJsonReport;
+
+import static org.hjug.mavenreport.ReportWriter.writeReportToDisk;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.maven.plugin.AbstractMojo;
+import org.apache.maven.plugins.annotations.LifecyclePhase;
+import org.apache.maven.plugins.annotations.Mojo;
+import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.plugins.annotations.ResolutionScope;
+import org.apache.maven.project.MavenProject;
+import org.hjug.cbc.CostBenefitCalculator;
+import org.hjug.cbc.RankedDisharmony;
+
+<span class="nc" id="L21">@Slf4j</span>
+@Mojo(
+        name = &quot;jsonreport&quot;,
+        defaultPhase = LifecyclePhase.SITE,
+        requiresDependencyResolution = ResolutionScope.RUNTIME,
+        requiresProject = true,
+        threadSafe = true,
+        inheritByDefault = false)
+<span class="nc" id="L29">public class RefactorFirstMavenJsonReport extends AbstractMojo {</span>
+    private static final String FILE_NAME = &quot;refactor-first-data.json&quot;;
+
+<span class="nc" id="L32">    private static final ObjectMapper MAPPER = new ObjectMapper();</span>
+
+    @Parameter(readonly = true, defaultValue = &quot;${project}&quot;)
+    private MavenProject project;
+
+    @Override
+    public void execute() {
+<span class="nc" id="L39">        final String projectBaseDir = project.getBasedir().getPath();</span>
+
+<span class="nc" id="L41">        final CostBenefitCalculator costBenefitCalculator = new CostBenefitCalculator();</span>
+<span class="nc" id="L42">        final List&lt;RankedDisharmony&gt; rankedDisharmonies =</span>
+<span class="nc" id="L43">                costBenefitCalculator.calculateCostBenefitValues(projectBaseDir);</span>
+<span class="nc" id="L44">        final List&lt;JsonReportDisharmonyEntry&gt; disharmonyEntries = rankedDisharmonies.stream()</span>
+<span class="nc" id="L45">                .map(JsonReportDisharmonyEntry::fromRankedDisharmony)</span>
+<span class="nc" id="L46">                .collect(Collectors.toList());</span>
+
+        final JsonReport report =
+<span class="nc" id="L49">                JsonReport.builder().rankedDisharmonies(disharmonyEntries).build();</span>
+
+        try {
+<span class="nc" id="L52">            final String reportJson = MAPPER.writeValueAsString(report);</span>
+
+<span class="nc" id="L54">            writeReportToDisk(project, FILE_NAME, new StringBuilder(reportJson));</span>
+<span class="nc" id="L55">        } catch (final JsonProcessingException jsonProcessingException) {</span>
+<span class="nc" id="L56">            final String errorMessage = &quot;Could not generate a json report: &quot; + jsonProcessingException;</span>
+
+<span class="nc" id="L58">            log.error(errorMessage);</span>
+<span class="nc" id="L59">            final JsonReport errorReport = JsonReport.builder()</span>
+<span class="nc" id="L60">                    .errors(new ArrayList&lt;&gt;(Collections.singletonList(errorMessage)))</span>
+<span class="nc" id="L61">                    .build();</span>
+
+<span class="nc" id="L63">            writeErrorReport(errorReport);</span>
+<span class="nc" id="L64">        }</span>
+<span class="nc" id="L65">    }</span>
+
+    private void writeErrorReport(final JsonReport errorReport) {
+        try {
+<span class="nc" id="L69">            writeReportToDisk(project, FILE_NAME, new StringBuilder(MAPPER.writeValueAsString(errorReport)));</span>
+<span class="nc" id="L70">        } catch (final JsonProcessingException jsonProcessingException) {</span>
+<span class="nc" id="L71">            log.error(&quot;failed to write error report: &quot;, jsonProcessingException);</span>
+<span class="nc" id="L72">        }</span>
+<span class="nc" id="L73">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.6.202009150832</span></div></body></html>

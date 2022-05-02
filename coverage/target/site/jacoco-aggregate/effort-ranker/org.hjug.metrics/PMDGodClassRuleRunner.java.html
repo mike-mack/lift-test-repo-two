@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>PMDGodClassRuleRunner.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">effort-ranker</a> &gt; <a href="index.source.html" class="el_package">org.hjug.metrics</a> &gt; <span class="el_source">PMDGodClassRuleRunner.java</span></div><h1>PMDGodClassRuleRunner.java</h1><pre class="source lang-java linenums">package org.hjug.metrics;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
+import java.util.Optional;
+import lombok.extern.slf4j.Slf4j;
+import net.sourceforge.pmd.*;
+import net.sourceforge.pmd.lang.Language;
+import net.sourceforge.pmd.lang.LanguageRegistry;
+import net.sourceforge.pmd.lang.java.JavaLanguageModule;
+
+// based on http://sdoulger.blogspot.com/2010/12/call-pmd-from-your-code-with-you-custom.html
+<span class="fc" id="L15">@Slf4j</span>
+public class PMDGodClassRuleRunner {
+
+    private SourceCodeProcessor sourceCodeProcessor;
+<span class="fc" id="L19">    private Language java = LanguageRegistry.getLanguage(JavaLanguageModule.NAME);</span>
+
+<span class="fc" id="L21">    public PMDGodClassRuleRunner() {</span>
+<span class="fc" id="L22">        PMD pmd = new PMD();</span>
+<span class="fc" id="L23">        sourceCodeProcessor = pmd.getSourceCodeProcessor();</span>
+<span class="fc" id="L24">    }</span>
+
+    public Optional&lt;GodClass&gt; runGodClassRule(File file) {
+        // TODO: Capture file path and file ref?
+<span class="nc" id="L28">        return runPMD(file);</span>
+    }
+
+    public Optional&lt;GodClass&gt; runGodClassRule(String name, InputStream fis) {
+<span class="fc" id="L32">        return runPMD(name, fis);</span>
+    }
+
+    /**
+     * Runs PMD on the specific file with the specific rule.
+     * @param file target file
+     * @return  List with errors. If empty then no error
+     */
+    public Optional&lt;GodClass&gt; runPMD(File file) {
+
+<span class="nc" id="L42">        FileInputStream fis = null;</span>
+        try {
+<span class="nc" id="L44">            fis = new FileInputStream(file);</span>
+<span class="nc" id="L45">        } catch (FileNotFoundException ignore) {</span>
+<span class="nc" id="L46">            log.warn(&quot;{} was not found&quot;, file.getName());</span>
+<span class="nc" id="L47">        }</span>
+
+<span class="nc" id="L49">        return runPMD(file.getName(), fis);</span>
+    }
+
+    public Optional&lt;GodClass&gt; runPMD(String sourceCodeFileName, InputStream inputStream) {
+<span class="fc" id="L53">        RuleSet ruleSet = new RuleSetLoader().loadFromResource(&quot;category/java/design.xml&quot;);</span>
+<span class="fc" id="L54">        Rule godClassRule = ruleSet.getRuleByName(&quot;GodClass&quot;);</span>
+<span class="fc" id="L55">        godClassRule.setLanguage(java);</span>
+
+        // add your rule to the ruleset
+<span class="fc" id="L58">        RuleSetFactory ruleSetFactory = new RuleSetFactory();</span>
+<span class="fc" id="L59">        RuleSet ruleSet2 = ruleSetFactory.createSingleRuleRuleSet(godClassRule);</span>
+<span class="fc" id="L60">        RuleSets ruleSets = new RuleSets(ruleSet2);</span>
+
+<span class="fc" id="L62">        GodClass godClass = null;</span>
+        try {
+            // Set the javaVersion you are using. (*1)
+            // pmd.setJavaVersion(SourceType.JAVA_16); -- MAY NEED TO SPECIFY THIS...
+            // Get a context and initialize it with The Report that PMD will return
+<span class="fc" id="L67">            final RuleContext ctx = new RuleContext();</span>
+<span class="fc" id="L68">            ctx.setReport(new Report());</span>
+            // target filename
+<span class="fc" id="L70">            ctx.setSourceCodeFile(new File(sourceCodeFileName));</span>
+<span class="fc" id="L71">            sourceCodeProcessor.processSourceCode(inputStream, ruleSets, ctx);</span>
+
+            // write results
+<span class="fc bfc" id="L74" title="All 2 branches covered.">            if (!ctx.getReport().isEmpty()) {</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">                for (final RuleViolation violation : ctx.getReport()) {</span>
+<span class="fc" id="L76">                    godClass = new GodClass(sourceCodeFileName, violation.getPackageName(), violation.getDescription());</span>
+<span class="fc" id="L77">                }</span>
+            }
+<span class="nc" id="L79">        } catch (PMDException ignore) {</span>
+<span class="nc" id="L80">            log.warn(&quot;runPMD failed&quot;, ignore);</span>
+<span class="fc" id="L81">        }</span>
+<span class="fc" id="L82">        return Optional.ofNullable(godClass);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.6.202009150832</span></div></body></html>

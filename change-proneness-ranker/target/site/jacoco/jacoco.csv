@@ -1,0 +1,4 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+change-proneness-ranker,org.hjug.git,ChangePronenessRanker,6,83,0,4,2,22,0,6,0,4
+change-proneness-ranker,org.hjug.git,GitLogReader,118,260,17,19,30,68,15,12,3,6
+change-proneness-ranker,org.hjug.git,ScmLogInfo,0,15,0,0,0,6,0,1,0,1
