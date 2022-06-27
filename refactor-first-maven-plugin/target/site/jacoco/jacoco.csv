@@ -1,0 +1,7 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+refactor-first-maven-plugin,org.hjug.mavenreport,HelpMojo,893,0,110,0,159,0,71,0,16,0
+refactor-first-maven-plugin,org.hjug.mavenreport,RefactorFirstMavenCsvReport,527,0,14,0,104,0,18,0,11,0
+refactor-first-maven-plugin,org.hjug.mavenreport,ReportWriter,72,0,2,0,19,0,4,0,3,0
+refactor-first-maven-plugin,org.hjug.mavenreport,RefactorFirstMavenReport,692,16,20,0,145,6,12,5,2,5
+refactor-first-maven-plugin,org.hjug.mavenreport.RefactorFirstJsonReport,RefactorFirstMavenJsonReport,93,0,0,0,27,0,4,0,4,0
+refactor-first-maven-plugin,org.hjug.mavenreport.RefactorFirstJsonReport,JsonReportDisharmonyEntry,34,0,0,0,12,0,2,0,2,0

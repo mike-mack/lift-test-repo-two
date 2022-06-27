@@ -1,0 +1,16 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+coverage/change-proneness-ranker,org.hjug.git,ChangePronenessRanker,6,83,0,4,2,22,0,6,0,4
+coverage/change-proneness-ranker,org.hjug.git,GitLogReader,32,346,12,24,7,91,12,15,1,8
+coverage/change-proneness-ranker,org.hjug.git,ScmLogInfo,0,15,0,0,0,6,0,1,0,1
+coverage/effort-ranker,org.hjug.metrics,GodClass,6,70,0,0,2,13,0,2,0,2
+coverage/effort-ranker,org.hjug.metrics,PMDGodClassRuleRunner,29,103,0,4,9,24,2,6,2,4
+coverage/effort-ranker,org.hjug.metrics,GodClassRanker,0,146,0,6,0,44,0,12,0,9
+coverage/cost-benefit-calculator,org.hjug.cbc,CostBenefitCalculator,17,186,0,6,6,44,1,9,1,6
+coverage/cost-benefit-calculator,org.hjug.cbc,RankedDisharmony,0,76,0,0,0,16,0,1,0,1
+coverage/graph-data-generator,org.hjug.gdg,GraphDataGenerator,0,94,0,4,0,22,0,6,0,4
+coverage/refactor-first-maven-plugin,org.hjug.mavenreport,HelpMojo,893,0,110,0,159,0,71,0,16,0
+coverage/refactor-first-maven-plugin,org.hjug.mavenreport,RefactorFirstMavenCsvReport,527,0,14,0,104,0,18,0,11,0
+coverage/refactor-first-maven-plugin,org.hjug.mavenreport,ReportWriter,72,0,2,0,19,0,4,0,3,0
+coverage/refactor-first-maven-plugin,org.hjug.mavenreport,RefactorFirstMavenReport,692,16,20,0,145,6,12,5,2,5
+coverage/refactor-first-maven-plugin,org.hjug.mavenreport.RefactorFirstJsonReport,RefactorFirstMavenJsonReport,93,0,0,0,27,0,4,0,4,0
+coverage/refactor-first-maven-plugin,org.hjug.mavenreport.RefactorFirstJsonReport,JsonReportDisharmonyEntry,34,0,0,0,12,0,2,0,2,0

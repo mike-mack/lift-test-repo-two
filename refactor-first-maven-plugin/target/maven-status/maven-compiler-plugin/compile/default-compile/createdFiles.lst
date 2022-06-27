@@ -1,0 +1,8 @@
+org/hjug/mavenreport/RefactorFirstJsonReport/JsonReport$JsonReportBuilder.class
+org/hjug/mavenreport/RefactorFirstMavenCsvReport.class
+org/hjug/mavenreport/ReportWriter.class
+org/hjug/mavenreport/RefactorFirstJsonReport/JsonReportDisharmonyEntry.class
+org/hjug/mavenreport/RefactorFirstJsonReport/JsonReportDisharmonyEntry$JsonReportDisharmonyEntryBuilder.class
+org/hjug/mavenreport/RefactorFirstJsonReport/RefactorFirstMavenJsonReport.class
+org/hjug/mavenreport/RefactorFirstJsonReport/JsonReport.class
+org/hjug/mavenreport/RefactorFirstMavenReport.class

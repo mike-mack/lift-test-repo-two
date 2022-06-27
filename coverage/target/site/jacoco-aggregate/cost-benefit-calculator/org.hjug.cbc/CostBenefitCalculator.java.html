@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>CostBenefitCalculator.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">cost-benefit-calculator</a> &gt; <a href="index.source.html" class="el_package">org.hjug.cbc</a> &gt; <span class="el_source">CostBenefitCalculator.java</span></div><h1>CostBenefitCalculator.java</h1><pre class="source lang-java linenums">package org.hjug.cbc;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.util.*;
+import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.lib.Repository;
+import org.hjug.git.ChangePronenessRanker;
+import org.hjug.git.GitLogReader;
+import org.hjug.git.RepositoryLogReader;
+import org.hjug.git.ScmLogInfo;
+import org.hjug.metrics.GodClass;
+import org.hjug.metrics.GodClassRanker;
+import org.hjug.metrics.PMDGodClassRuleRunner;
+
+<span class="fc" id="L20">@Slf4j</span>
+<span class="fc" id="L21">public class CostBenefitCalculator {</span>
+
+    public List&lt;RankedDisharmony&gt; calculateCostBenefitValues(String repositoryPath) {
+
+<span class="fc" id="L25">        RepositoryLogReader repositoryLogReader = new GitLogReader();</span>
+<span class="fc" id="L26">        Repository repository = null;</span>
+<span class="fc" id="L27">        log.info(&quot;Initiating Cost Benefit calculation&quot;);</span>
+        try {
+<span class="fc" id="L29">            repository = repositoryLogReader.gitRepository(new File(repositoryPath));</span>
+<span class="nc" id="L30">        } catch (IOException e) {</span>
+<span class="nc" id="L31">            log.error(&quot;Failure to access Git repository&quot;, e);</span>
+<span class="fc" id="L32">        }</span>
+
+<span class="fc" id="L34">        List&lt;GodClass&gt; godClasses = getGodClasses(repositoryLogReader, repository);</span>
+
+<span class="fc" id="L36">        List&lt;ScmLogInfo&gt; scmLogInfos = getRankedChangeProneness(repositoryLogReader, repository, godClasses);</span>
+
+<span class="fc" id="L38">        Map&lt;String, ScmLogInfo&gt; rankedLogInfosByPath =</span>
+<span class="pc" id="L39">                scmLogInfos.stream().collect(Collectors.toMap(ScmLogInfo::getPath, logInfo -&gt; logInfo, (a, b) -&gt; b));</span>
+
+<span class="fc" id="L41">        List&lt;RankedDisharmony&gt; rankedDisharmonies = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        for (GodClass godClass : godClasses) {</span>
+<span class="fc" id="L43">            rankedDisharmonies.add(new RankedDisharmony(godClass, rankedLogInfosByPath.get(godClass.getFileName())));</span>
+<span class="fc" id="L44">        }</span>
+
+<span class="fc" id="L46">        return rankedDisharmonies;</span>
+    }
+
+    List&lt;ScmLogInfo&gt; getRankedChangeProneness(
+            RepositoryLogReader repositoryLogReader, Repository repository, List&lt;GodClass&gt; godClasses) {
+<span class="fc" id="L51">        List&lt;ScmLogInfo&gt; scmLogInfos = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L52">        log.info(&quot;Calculating Change Proneness for each God Class&quot;);</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">        for (GodClass godClass : godClasses) {</span>
+<span class="fc" id="L54">            String path = godClass.getFileName();</span>
+<span class="fc" id="L55">            ScmLogInfo scmLogInfo = null;</span>
+            try {
+<span class="fc" id="L57">                scmLogInfo = repositoryLogReader.fileLog(repository, path);</span>
+<span class="nc" id="L58">            } catch (GitAPIException | IOException e) {</span>
+<span class="nc" id="L59">                log.error(&quot;Error reading Git repository contents&quot;, e);</span>
+<span class="fc" id="L60">            }</span>
+
+<span class="fc" id="L62">            scmLogInfos.add(scmLogInfo);</span>
+<span class="fc" id="L63">        }</span>
+
+<span class="fc" id="L65">        ChangePronenessRanker changePronenessRanker = new ChangePronenessRanker(repository, repositoryLogReader);</span>
+<span class="fc" id="L66">        changePronenessRanker.rankChangeProneness(scmLogInfos);</span>
+<span class="fc" id="L67">        return scmLogInfos;</span>
+    }
+
+    private List&lt;GodClass&gt; getGodClasses(RepositoryLogReader repositoryLogReader, Repository repository) {
+<span class="fc" id="L71">        Map&lt;String, ByteArrayOutputStream&gt; filesToScan = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L72">        log.info(&quot;Identifying God Classes from files in repository&quot;);</span>
+        try {
+<span class="fc" id="L74">            filesToScan = repositoryLogReader.listRepositoryContentsAtHEAD(repository);</span>
+<span class="nc" id="L75">        } catch (IOException e) {</span>
+<span class="nc" id="L76">            log.error(&quot;Error reading Git repository contents&quot;, e);</span>
+<span class="fc" id="L77">        }</span>
+
+<span class="fc" id="L79">        PMDGodClassRuleRunner ruleRunner = new PMDGodClassRuleRunner();</span>
+
+<span class="fc" id="L81">        List&lt;GodClass&gt; godClasses = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        for (Map.Entry&lt;String, ByteArrayOutputStream&gt; entry : filesToScan.entrySet()) {</span>
+<span class="fc" id="L83">            String filePath = entry.getKey();</span>
+<span class="fc" id="L84">            ByteArrayOutputStream value = entry.getValue();</span>
+
+<span class="fc" id="L86">            ByteArrayInputStream inputStream = new ByteArrayInputStream(value.toByteArray());</span>
+<span class="fc" id="L87">            Optional&lt;GodClass&gt; godClassOptional = ruleRunner.runGodClassRule(filePath, inputStream);</span>
+<span class="fc" id="L88">            godClassOptional.ifPresent(godClasses::add);</span>
+<span class="fc" id="L89">        }</span>
+
+<span class="fc" id="L91">        GodClassRanker godClassRanker = new GodClassRanker();</span>
+<span class="fc" id="L92">        godClassRanker.rankGodClasses(godClasses);</span>
+<span class="fc" id="L93">        return godClasses;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.6.202009150832</span></div></body></html>

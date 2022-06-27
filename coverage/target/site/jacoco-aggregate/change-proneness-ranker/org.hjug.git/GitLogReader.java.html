@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GitLogReader.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">change-proneness-ranker</a> &gt; <a href="index.source.html" class="el_package">org.hjug.git</a> &gt; <span class="el_source">GitLogReader.java</span></div><h1>GitLogReader.java</h1><pre class="source lang-java linenums">package org.hjug.git;
+
+import java.io.*;
+import java.util.*;
+import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.diff.DiffEntry;
+import org.eclipse.jgit.diff.DiffFormatter;
+import org.eclipse.jgit.lib.*;
+import org.eclipse.jgit.revwalk.*;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.treewalk.CanonicalTreeParser;
+import org.eclipse.jgit.treewalk.TreeWalk;
+import org.eclipse.jgit.util.io.NullOutputStream;
+
+<span class="fc" id="L17">@Slf4j</span>
+<span class="fc" id="L18">public class GitLogReader implements RepositoryLogReader {</span>
+
+    static final String JAVA_FILE_TYPE = &quot;.java&quot;;
+
+    // Based on
+    // https://github.com/Cosium/git-code-format-maven-plugin/blob/master/src/main/java/com/cosium/code/format/AbstractMavenGitCodeFormatMojo.java
+    // MIT License
+    // Move to a provider?
+    @Override
+    public Repository gitRepository(File basedir) throws IOException {
+        Repository gitRepository;
+<span class="fc" id="L29">        FileRepositoryBuilder repositoryBuilder = new FileRepositoryBuilder().findGitDir(basedir);</span>
+<span class="fc" id="L30">        String gitIndexFileEnvVariable = System.getenv(&quot;GIT_INDEX_FILE&quot;);</span>
+<span class="pc bpc" id="L31" title="1 of 2 branches missed.">        if (Objects.nonNull(gitIndexFileEnvVariable)</span>
+<span class="nc bnc" id="L32" title="All 2 branches missed.">                &amp;&amp; !gitIndexFileEnvVariable.trim().isEmpty()) {</span>
+<span class="nc" id="L33">            log.debug(&quot;Setting Index File based on Env Variable GIT_INDEX_FILE {}&quot;, gitIndexFileEnvVariable);</span>
+<span class="nc" id="L34">            repositoryBuilder = repositoryBuilder.setIndexFile(new File(gitIndexFileEnvVariable));</span>
+        }
+<span class="fc" id="L36">        gitRepository = repositoryBuilder.build();</span>
+
+<span class="fc" id="L38">        return gitRepository;</span>
+    }
+
+    public File getGitDir(File basedir) {
+<span class="nc" id="L42">        FileRepositoryBuilder repositoryBuilder = new FileRepositoryBuilder().findGitDir(basedir);</span>
+<span class="nc" id="L43">        return repositoryBuilder.getGitDir();</span>
+    }
+
+    // https://stackoverflow.com/a/19950970/346247
+    // and
+    // https://github.com/centic9/jgit-cookbook/blob/master/src/main/java/org/dstadler/jgit/api/ReadFileFromCommit.java
+    @Override
+    public Map&lt;String, ByteArrayOutputStream&gt; listRepositoryContentsAtHEAD(Repository repository) throws IOException {
+<span class="fc" id="L51">        Ref head = repository.exactRef(&quot;HEAD&quot;);</span>
+        // a RevWalk allows us to walk over commits based on some filtering that is defined
+<span class="fc" id="L53">        RevWalk walk = new RevWalk(repository);</span>
+<span class="fc" id="L54">        RevCommit commit = walk.parseCommit(head.getObjectId());</span>
+<span class="fc" id="L55">        RevTree tree = commit.getTree();</span>
+
+<span class="fc" id="L57">        TreeWalk treeWalk = new TreeWalk(repository);</span>
+<span class="fc" id="L58">        treeWalk.addTree(tree);</span>
+<span class="fc" id="L59">        treeWalk.setRecursive(false);</span>
+
+        // TODO: extract rest of this method to test it
+<span class="fc" id="L62">        Map&lt;String, ByteArrayOutputStream&gt; fileContentsCollection = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        while (treeWalk.next()) {</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">            if (treeWalk.isSubtree()) {</span>
+<span class="nc" id="L65">                treeWalk.enterSubtree();</span>
+            } else {
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">                if (treeWalk.getPathString().endsWith(JAVA_FILE_TYPE)) {</span>
+<span class="fc" id="L68">                    ObjectId objectId = treeWalk.getObjectId(0);</span>
+<span class="fc" id="L69">                    ObjectLoader loader = repository.open(objectId);</span>
+<span class="fc" id="L70">                    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();</span>
+<span class="fc" id="L71">                    loader.copyTo(outputStream);</span>
+<span class="fc" id="L72">                    fileContentsCollection.put(treeWalk.getPathString(), outputStream);</span>
+<span class="fc" id="L73">                }</span>
+            }
+        }
+<span class="fc" id="L76">        return fileContentsCollection;</span>
+    }
+
+    // log --follow implementation may be worth adopting in the future
+    // https://github.com/spearce/jgit/blob/master/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java
+
+    /**
+     * Returns the number of commits and earliest commit for a given path
+     * TODO: Move to a different class???
+     *
+     * @param repository
+     * @param path
+     * @return a LogInfo object
+     * @throws GitAPIException
+     */
+    @Override
+    public ScmLogInfo fileLog(Repository repository, String path) throws GitAPIException, IOException {
+<span class="fc" id="L93">        Git git = new Git(repository);</span>
+<span class="fc" id="L94">        ObjectId branchId = repository.resolve(&quot;HEAD&quot;);</span>
+<span class="fc" id="L95">        Iterable&lt;RevCommit&gt; revCommits = git.log().add(branchId).addPath(path).call();</span>
+
+<span class="fc" id="L97">        int commitCount = 0;</span>
+<span class="fc" id="L98">        int earliestCommit = Integer.MAX_VALUE;</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">        for (RevCommit revCommit : revCommits) {</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">            if (revCommit.getCommitTime() &lt; earliestCommit) {</span>
+<span class="fc" id="L101">                earliestCommit = revCommit.getCommitTime();</span>
+            }
+<span class="fc" id="L103">            commitCount++;</span>
+<span class="fc" id="L104">        }</span>
+
+        // based on https://stackoverflow.com/a/59274329/346247
+<span class="fc" id="L107">        int mostRecentCommit = new Git(repository)</span>
+<span class="fc" id="L108">                .log()</span>
+<span class="fc" id="L109">                .add(branchId)</span>
+<span class="fc" id="L110">                .addPath(path)</span>
+<span class="fc" id="L111">                .setMaxCount(1)</span>
+<span class="fc" id="L112">                .call()</span>
+<span class="fc" id="L113">                .iterator()</span>
+<span class="fc" id="L114">                .next()</span>
+<span class="fc" id="L115">                .getCommitTime();</span>
+
+<span class="fc" id="L117">        return new ScmLogInfo(path, earliestCommit, mostRecentCommit, commitCount);</span>
+    }
+
+    // based on https://stackoverflow.com/questions/27361538/how-to-show-changes-between-commits-with-jgit
+    @Override
+    public TreeMap&lt;Integer, Integer&gt; captureChangeCountByCommitTimestamp(Repository repository)
+            throws IOException, GitAPIException {
+
+<span class="fc" id="L125">        TreeMap&lt;Integer, Integer&gt; changesByCommitTimestamp = new TreeMap&lt;&gt;();</span>
+
+<span class="fc" id="L127">        try (Git git = new Git(repository)) {</span>
+<span class="fc" id="L128">            ObjectId branchId = repository.resolve(&quot;HEAD&quot;);</span>
+<span class="fc" id="L129">            Iterable&lt;RevCommit&gt; commits = git.log().add(branchId).call();</span>
+
+<span class="fc" id="L131">            RevCommit newCommit = null;</span>
+
+<span class="fc bfc" id="L133" title="All 2 branches covered.">            for (Iterator&lt;RevCommit&gt; iterator = commits.iterator(); iterator.hasNext(); ) {</span>
+<span class="fc" id="L134">                RevCommit oldCommit = iterator.next();</span>
+
+<span class="fc" id="L136">                int count = 0;</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">                if (null == newCommit) {</span>
+<span class="fc" id="L138">                    newCommit = oldCommit;</span>
+<span class="fc" id="L139">                    continue;</span>
+                }
+
+<span class="fc bfc" id="L142" title="All 2 branches covered.">                for (DiffEntry entry : getDiffEntries(git, newCommit, oldCommit)) {</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">                    if (entry.getNewPath().endsWith(JAVA_FILE_TYPE)</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">                            || entry.getOldPath().endsWith(JAVA_FILE_TYPE)) {</span>
+<span class="fc" id="L145">                        count++;</span>
+                    }
+<span class="fc" id="L147">                }</span>
+
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">                if (count &gt; 0) {</span>
+<span class="fc" id="L150">                    changesByCommitTimestamp.put(newCommit.getCommitTime(), count);</span>
+                }
+
+                // Handle first / initial commit
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">                if (!iterator.hasNext()) {</span>
+<span class="fc" id="L155">                    changesByCommitTimestamp.putAll(walkFirstCommit(repository, oldCommit));</span>
+                }
+
+<span class="fc" id="L158">                newCommit = oldCommit;</span>
+<span class="fc" id="L159">            }</span>
+        }
+<span class="fc" id="L161">        return changesByCommitTimestamp;</span>
+    }
+
+    private List&lt;DiffEntry&gt; getDiffEntries(Git git, RevCommit newCommit, RevCommit oldCommit) throws IOException {
+<span class="fc" id="L165">        CanonicalTreeParser oldTreeIter = new CanonicalTreeParser();</span>
+<span class="fc" id="L166">        CanonicalTreeParser newTreeIter = new CanonicalTreeParser();</span>
+<span class="fc" id="L167">        try (ObjectReader reader = git.getRepository().newObjectReader()) {</span>
+<span class="fc" id="L168">            ObjectId oldTree = git.getRepository().resolve(newCommit.getTree().name());</span>
+<span class="fc" id="L169">            oldTreeIter.reset(reader, oldTree);</span>
+<span class="fc" id="L170">            ObjectId newTree = git.getRepository().resolve(oldCommit.getTree().name());</span>
+<span class="fc" id="L171">            newTreeIter.reset(reader, newTree);</span>
+        }
+
+<span class="fc" id="L174">        DiffFormatter df = new DiffFormatter(NullOutputStream.INSTANCE);</span>
+<span class="fc" id="L175">        df.setRepository(git.getRepository());</span>
+<span class="fc" id="L176">        return df.scan(oldTreeIter, newTreeIter);</span>
+    }
+
+    Map&lt;Integer, Integer&gt; walkFirstCommit(Repository repository, RevCommit firstCommit) throws IOException {
+<span class="fc" id="L180">        Map&lt;Integer, Integer&gt; changesByCommitTimestamp = new TreeMap&lt;&gt;();</span>
+<span class="fc" id="L181">        int firstCommitCount = 0;</span>
+<span class="fc" id="L182">        ObjectId treeId = firstCommit.getTree();</span>
+<span class="fc" id="L183">        try (TreeWalk treeWalk = new TreeWalk(repository)) {</span>
+<span class="fc" id="L184">            treeWalk.setRecursive(false);</span>
+<span class="fc" id="L185">            treeWalk.reset(treeId);</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">            while (treeWalk.next()) {</span>
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">                if (treeWalk.isSubtree()) {</span>
+<span class="nc" id="L188">                    treeWalk.enterSubtree();</span>
+                } else {
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">                    if (treeWalk.getPathString().endsWith(JAVA_FILE_TYPE)) {</span>
+<span class="fc" id="L191">                        firstCommitCount++;</span>
+                    }
+                }
+            }
+        }
+
+<span class="pc bpc" id="L197" title="1 of 2 branches missed.">        if (firstCommitCount &gt; 0) {</span>
+<span class="fc" id="L198">            changesByCommitTimestamp.put(firstCommit.getCommitTime(), firstCommitCount);</span>
+        }
+
+<span class="fc" id="L201">        return changesByCommitTimestamp;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.6.202009150832</span></div></body></html>
